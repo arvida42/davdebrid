@@ -1,0 +1,78 @@
+name: davdebrid
+services:
+
+  davdebrid:
+    image: arvida42/davdebrid:latest
+    container_name: davdebrid
+    restart: always
+    environment:
+      DEBRID_API_KEY: # Get it on https://debrid-link.com/webapp/apikey
+      DATA_FOLDER: /data
+      PLEX_URL: http://plex:32400
+      PLEX_TOKEN: # go on plex: http://localhost:32400, open devtool, copy and past the result of "localStorage.myPlexAccessToken"
+    networks:
+      - davdebrid
+    volumes:
+      - davdebrid-data:/data
+
+  rclone:
+    image: rclone/rclone:latest
+    container_name: rclone
+    restart: always
+    environment:
+      PUID: 1000
+      PGID: 1000
+      RCLONE_CONFIG_DAV_TYPE: "webdav"
+      RCLONE_CONFIG_DAV_URL: "http://davdebrid:8080"
+      RCLONE_CONFIG_DAV_VENDOR: "other"
+    networks:
+      - davdebrid
+    volumes:
+      - davdebrid-mnt:/mnt/dav:rshared
+    cap_add:
+      - SYS_ADMIN
+      - MKNOD
+    security_opt:
+      - apparmor:unconfined
+    devices:
+      - /dev/fuse:/dev/fuse:rwm
+    depends_on:
+      - davdebrid
+    command: "mount dav: /mnt/dav --dir-cache-time 5s --allow-other --vfs-cache-mode full --vfs-cache-max-size 500M --vfs-read-chunk-size 4M --vfs-read-chunk-size-limit 256M --vfs-fast-fingerprint --read-only --allow-non-empty"
+
+  plex:
+    image: lscr.io/linuxserver/plex:latest
+    container_name: plex
+    restart: always
+    ports:
+      - 32400:32400
+      - 1900:1900/udp
+      # - 5353:5353/udp
+      - 8324:8324
+      - 32410:32410/udp
+      - 32412:32412/udp
+      - 32413:32413/udp
+      - 32414:32414/udp
+      - 32469:32469
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: Etc/UTC
+      VERSION: docker
+      PLEX_CLAIM: # Get it on https://plex.tv/claim
+    networks:
+      - davdebrid
+    volumes:
+      - plex-config:/config
+      - davdebrid-mnt:/mnt/dav:rshared
+    depends_on:
+      - rclone
+
+    
+networks:
+  davdebrid:
+
+volumes:
+  davdebrid-data:
+  davdebrid-mnt:
+  plex-config:

@@ -1,0 +1,48 @@
+name: davdebrid
+services:
+
+  davdebrid:
+    image: arvida42/davdebrid:latest
+    container_name: davdebrid
+    restart: always
+    environment:
+      DEBRID_API_KEY: # Get it on https://debrid-link.com/webapp/apikey
+      DATA_FOLDER: /data
+    networks:
+      - davdebrid
+    volumes:
+      - davdebrid-data:/data
+
+  rclone:
+    image: rclone/rclone:latest
+    container_name: rclone
+    restart: always
+    environment:
+      PUID: 1000
+      PGID: 1000
+      RCLONE_CONFIG_DAV_TYPE: "webdav"
+      RCLONE_CONFIG_DAV_URL: "http://davdebrid:8080"
+      RCLONE_CONFIG_DAV_VENDOR: "other"
+    networks:
+      - davdebrid
+    volumes:
+      # Mount the dav in davdebrid-mnt volume
+      - davdebrid-mnt:/mnt/dav:rshared
+    cap_add:
+      - SYS_ADMIN
+      - MKNOD
+    security_opt:
+      - apparmor:unconfined
+    devices:
+      - /dev/fuse:/dev/fuse:rwm
+    depends_on:
+      - davdebrid
+    command: "mount dav: /mnt/dav --dir-cache-time 5s --allow-other --vfs-cache-mode full --vfs-cache-max-size 500M --vfs-read-chunk-size 4M --vfs-read-chunk-size-limit 256M --vfs-fast-fingerprint --read-only --allow-non-empty"
+
+    
+networks:
+  davdebrid:
+
+volumes:
+  davdebrid-data:
+  davdebrid-mnt:

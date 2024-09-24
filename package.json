@@ -1,0 +1,19 @@
+{
+  "name": "davdebrid",
+  "version": "1.0.0",
+  "description": "Debrid-Link WebDAV server for media",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "keywords": [
+    "webdav"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "cache-manager": "^4.1.0",
+    "cache-manager-sqlite": "^0.2.0",
+    "sqlite3": "^5.1.1"
+  }
+}

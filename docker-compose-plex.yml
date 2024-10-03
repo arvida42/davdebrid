@@ -6,6 +6,7 @@ services:
     container_name: davdebrid
     restart: always
     environment:
+      DEBRID_ID: debridlink # Supported debrids: https://github.com/arvida42/davdebrid/tree/main/src/lib/debrid
       DEBRID_API_KEY: # Get it on https://debrid-link.com/webapp/apikey
       DATA_FOLDER: /data
       PLEX_URL: http://plex:32400

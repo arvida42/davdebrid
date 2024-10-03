@@ -11,6 +11,7 @@ docker run -d \
   --name=davdebrid \
   -p 8080:8080 \
   --restart unless-stopped \
+  -e DEBRID_ID=debridlink \
   -e DEBRID_API_KEY=apikey \
   -e DATA_FOLDER=/data \
   -v /path/to/data:/data \

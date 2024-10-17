@@ -9,7 +9,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
 
-    if(basename(req.url).startsWith('.')){
+    if(basename(req.url).startsWith('.') || req.url == '/favicon.ico'){
       res.writeHead(404);
       res.end('Ignored file');
       return;
@@ -50,6 +50,10 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if(req.headers['sec-fetch-mode']){
+      console.log(`Using DavDebrid in a browser is not supported. Please use a dedicated WebDAV client instead.`);
+    }
+
     const dav = new Debriddav({debridId, debridApiKey, debridIp});
 
     if(req.method === 'PROPFIND'){
@@ -63,6 +67,12 @@ const server = http.createServer(async (req, res) => {
       res.end(xmlResponse);
 
     }else if(req.method === 'GET'){
+
+      if(path == '/'){
+        res.writeHead(400);
+        res.end(`Using DavDebrid in a browser is not supported. Please use a dedicated WebDAV client instead.`);
+        return;
+      }
 
       const fileUrl = await dav.getFileUrl(path);
 

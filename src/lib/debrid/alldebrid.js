@@ -49,6 +49,10 @@ export default class AllDebrid extends Debrid {
   }
 
   async getDownload(file){
+    if(!file.url){
+      console.log(file);
+      throw new Error(`No url available in alldebrid file object`);
+    }
     const query = {link: file.url};
     const res = await this.#request('GET', '/link/unlock', {query});
     return res.data.link;

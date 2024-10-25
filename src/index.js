@@ -139,8 +139,8 @@ function generatePropfindResponse(requestPath, files) {
   res += '<d:multistatus xmlns:d="DAV:">\n';
   res += files.map((file) => {
     const isCollection = file.type === 'folder';
-    const href = encodeURI(requestPath + (requestPath.endsWith('/') ? '' : '/') + file.name + (isCollection ? '/' : ''));
-    const props = [`<d:displayname>${file.name}</d:displayname>`];
+    const href = (requestPath + (requestPath.endsWith('/') ? '' : '/') + file.name + (isCollection ? '/' : '')).split('/').map(encodeURIComponent).join('/');
+    const props = [`<d:displayname>${file.name.replace(/&/g, '&amp;')}</d:displayname>`];
     if(isCollection){
       props.push(`<d:resourcetype><d:collection/></d:resourcetype>`);
     }else{

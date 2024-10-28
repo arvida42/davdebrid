@@ -29,10 +29,10 @@ export default class Davdebrid {
 
     if(path === '/'){
 
-      const folders = await this.#getFolders();
+      const directories = await this.#getDirectories();
 
-      return folders.map(foler => ({
-        name: foler.name,
+      return directories.map(dir => ({
+        name: dir.name,
         size: 0,
         type: 'folder' 
       })).concat({
@@ -47,18 +47,18 @@ export default class Davdebrid {
 
     }else if(path.endsWith('/')){
 
-      const [files, folders] = await Promise.all([this.#getFiles(), this.#getFolders()]);
+      const [files, directories] = await Promise.all([this.#getFiles(), this.#getDirectories()]);
 
-      const folderName = basename(path);
-      const fileOrganizer = new FileOrganizer(files, folders);
+      const dirName = basename(path);
+      const fileOrganizer = new FileOrganizer(files, directories);
 
-      const folder = fileOrganizer.get().find(folder => folder.name == folderName);
+      const dir = fileOrganizer.get().find(dir => dir.name == dirName);
 
-      if(!folder){
+      if(!dir){
         throw new Error(debrid.ERROR.NOT_FOUND);
       }
 
-      return folder.files;
+      return dir.files;
 
     }else {
 
@@ -144,7 +144,7 @@ export default class Davdebrid {
     const headers = {'X-Plex-Token': plexToken, Accept: 'application/json'};
 
     const sections = await fetch(`${plexUrl}/library/sections`, {headers}).then(res => res.json());
-    const sectionLocationRegex = new RegExp(`\/(${this.folders.map(folder => folder.name).join('|')})`);
+    const sectionLocationRegex = new RegExp(`\/(${this.directories.map(dir => dir.name).join('|')})`);
 
     // rclone --dir-cache-time 5s
     await wait(5000);
@@ -235,15 +235,15 @@ export default class Davdebrid {
     return files.filter(Boolean);
   }
 
-  async #getFolders(){
+  async #getDirectories(){
     try {
       const customConfig = await this.#getConfigFromFile(pathJoin(config.dataFolder, 'config', 'config.custom.yml'));
-      if(customConfig && customConfig.folders && customConfig.folders.length > 0)return customConfig.folders;
+      if(customConfig && customConfig.directories && customConfig.directories.length > 0)return customConfig.directories;
     }catch(err){
       console.log('Error on config.custom.yml, fallback to config.yml', err);
     }
     const defaultConfig = await this.#getConfigFromFile(pathJoin(config.dataFolder, 'config', 'config.yml'));
-    return defaultConfig.folders;
+    return defaultConfig.directories;
   }
 
   async #getConfigFromFile(path){

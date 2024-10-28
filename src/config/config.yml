@@ -2,19 +2,19 @@
 # To customize, please edit the 'config.custom.yml' file.
 
 # Folder Organizer Conditions
-# Files available on the debrid service will be organized into folders based on specified conditions.
-# If a file matches a 'unique' folder condition, no further `unique` folder conditions will be checked for that file.
+# Files available on the debrid service will be organized into directories based on specified conditions.
+# If a file matches a 'unique' directory condition, no further `unique` directory conditions will be checked for that file.
 
-folders:
+directories:
 
-  # This folder contains all files, regardless of type.
-  # Since this is not a unique condition, files may also appear in other applicable folders.
+  # This directory contains all files, regardless of type.
+  # Since this is not a unique condition, files may also appear in other applicable directories.
   - name: 'All'
     unique: false
     cond: {}
 
-  # This folder contains only video and subtitle files that match the specified regex 
-  # or are located within a parent folder containing more than six video files 
+  # This directory contains only video and subtitle files that match the specified regex 
+  # or are located within a parent directory containing more than six video files 
   # (e.g., torrent with multiple videos).
   - name: 'Shows'
     unique: true
@@ -26,7 +26,7 @@ folders:
         - 'video'
         - 'subtitle'
 
-  # This folder contains all remaining video and subtitle files that do not match the conditions of previous unique folders (Shows).
+  # This directory contains all remaining video and subtitle files that do not match the conditions of previous unique directories (Shows).
   - name: 'Movies'
     unique: true
     cond:

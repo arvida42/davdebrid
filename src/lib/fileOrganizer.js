@@ -1,31 +1,31 @@
 export default class FileOrganizer {
 
-  constructor(files = [], folders = []){
+  constructor(files = [], directories = []){
     this.files = files;
-    this.folders = folders;
+    this.directories = directories;
   }
 
-  // Method to organize files based on folders conditions
+  // Method to organize files based on directories conditions
   get(){
 
     // Non-Unique Folders First
-    this.folders = this.folders.sort((a, b) => {
+    this.directories = this.directories.sort((a, b) => {
       if(a.unique == b.unique)return 0;
       return !a.unique ? -1 : 1;
     });
 
-    this.folders.forEach(folder => folder.files = []);
+    this.directories.forEach(dir => dir.files = []);
 
     for(let file of this.files){
-      for(let folder of this.folders){
-        if(this.#matchesCondition(file, folder.cond)){
-          folder.files.push(file);
-          if(folder.unique)break; // Stop when a unique folder is reached 
+      for(let dir of this.directories){
+        if(this.#matchesCondition(file, dir.cond)){
+          dir.files.push(file);
+          if(dir.unique)break; // Stop when a unique directory is reached 
         }
       }
     }
 
-    return this.folders;
+    return this.directories;
 
   }
 

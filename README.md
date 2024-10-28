@@ -41,7 +41,7 @@ rclone mount dav: /mnt/dav \
 
 1. Download the [`downloader-compose.yml`](./docker-compose.yml) file.
 2. Edit the `DEBRID_API_KEY`. You can obtain it from [Debrid-Link API Key](https://debrid-link.com/webapp/apikey).
-3. By default, the mount point is set to a Docker volume (`davdebrid-mnt`). You can change this to a local folder if preferred.
+3. By default, the mount point is set to a Docker volume (`davdebrid-mnt`). You can change this to a local directory if preferred.
 4. Run the following command to start the services:
   ```bash
   docker compose up -d
@@ -75,21 +75,21 @@ All server configurations are documented in the [config.js file](./src/lib/confi
 
 ### Folder organizing
 
-When you mount the WebDAV server, you’ll find a `Config` folder containing two files:
+When you mount the WebDAV server, you’ll find a `Config` directory containing two files:
 
-- **`config.yml`**: This is the default configuration file for your folders. It provides base settings and is read-only, so it cannot be modified.
-- **`config.custom.yml`**: This is your customizable configuration file. You can edit it to define and apply your own organization rules for folders, which will override the default configuration.
+- **`config.yml`**: This is the default configuration file for your directories. It provides base settings and is read-only, so it cannot be modified.
+- **`config.custom.yml`**: This is your customizable configuration file. You can edit it to define and apply your own organization rules for directories, which will override the default configuration.
 
-Each folder configuration is processed sequentially in the order specified in the configuration file.
+Each directory configuration is processed sequentially in the order specified in the configuration file.
 
 #### Folder Properties
-- **`name`**: The display name for the folder at the root of your WebDAV.
-- **`unique`**: Specifies whether the folder is unique. Files in non-unique folders can also appear in other matching folders. Files cannot appear in more than one unique folder.
-- **`cond`**: The condition used to determine which files are in the folder.
+- **`name`**: The display name for the directory at the root of your WebDAV.
+- **`unique`**: Specifies whether the directory is unique. Files in non-unique directories can also appear in other matching directories. Files cannot appear in more than one unique directory.
+- **`cond`**: The condition used to determine which files are in the directory.
 
 #### Condition Types
 - **`regex`**: Matches files based on the specified regex pattern.
-- **`minVideosInParent`**: Requires that the file be located within a parent folder containing at least `n` video files.
+- **`minVideosInParent`**: Requires that the file be located within a parent directory containing at least `n` video files.
 - **`fileTypes`**: Defines the acceptable file types (e.g., `video`, `subtitle`, `music`, `image`, `unknown`).
 - **`or`**: Applies an `OR` logic across the listed conditions.
 - **`and`**: Applies an `AND` logic across conditions. This is the default behavior and doesn’t need to be explicitly specified.
@@ -102,19 +102,19 @@ For example, the default organization rules:
 # To customize, please edit the 'config.custom.yml' file.
 
 # Folder Organizer Conditions
-# Files available on the debrid service will be organized into folders based on specified conditions.
-# If a file matches a 'unique' folder condition, no further `unique` folder conditions will be checked for that file.
+# Files available on the debrid service will be organized into directories based on specified conditions.
+# If a file matches a 'unique' directory condition, no further `unique` directory conditions will be checked for that file.
 
-folders:
+directories:
 
-  # This folder contains all files, regardless of type.
-  # Since this is not a unique condition, files may also appear in other applicable folders.
+  # This directory contains all files, regardless of type.
+  # Since this is not a unique condition, files may also appear in other applicable directories.
   - name: 'All'
     unique: false
     cond: {}
 
-  # This folder contains only video and subtitle files that match the specified regex 
-  # or are located within a parent folder containing more than six video files 
+  # This directory contains only video and subtitle files that match the specified regex 
+  # or are located within a parent directory containing more than six video files 
   # (e.g., torrent with multiple videos).
   - name: 'Shows'
     unique: true
@@ -126,11 +126,12 @@ folders:
         - 'video'
         - 'subtitle'
 
-  # This folder contains all remaining video and subtitle files that do not match the conditions of previous unique folders (Shows).
+  # This directory contains all remaining video and subtitle files that do not match the conditions of previous unique directories (Shows).
   - name: 'Movies'
     unique: true
     cond:
       fileTypes:
         - 'video'
         - 'subtitle'
+
 ```

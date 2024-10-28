@@ -1,0 +1,35 @@
+# Default Configuration - Cannot be Overwritten
+# To customize, please edit the 'config.custom.yml' file.
+
+# Folder Organizer Conditions
+# Files available on the debrid service will be organized into folders based on specified conditions.
+# If a file matches a 'unique' folder condition, no further `unique` folder conditions will be checked for that file.
+
+folders:
+
+  # This folder contains all files, regardless of type.
+  # Since this is not a unique condition, files may also appear in other applicable folders.
+  - name: 'All'
+    unique: false
+    cond: {}
+
+  # This folder contains only video and subtitle files that match the specified regex 
+  # or are located within a parent folder containing more than six video files 
+  # (e.g., torrent with multiple videos).
+  - name: 'Shows'
+    unique: true
+    cond:
+      or:
+        regex: '[0-9]+E[0-9]+|[0-9]+x[0-9]+'
+        minVideosInParent: 6
+      fileTypes:
+        - 'video'
+        - 'subtitle'
+
+  # This folder contains all remaining video and subtitle files that do not match the conditions of previous unique folders (Shows).
+  - name: 'Movies'
+    unique: true
+    cond:
+      fileTypes:
+        - 'video'
+        - 'subtitle'

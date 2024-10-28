@@ -1,9 +1,14 @@
 import http from 'http';
-import {basename} from 'path';
+import {tmpdir} from 'os';
+import * as fs from 'node:fs/promises';
+import {createReadStream, createWriteStream} from 'fs';
+import {basename, join as pathJoin, dirname} from 'path';
 import {vacuum as vacuumCache, clean as cleanCache} from './lib/cache.js';
 import config from './lib/config.js';
 import * as debrid from './lib/debrid.js';
 import Debriddav from './lib/davdebrid.js';
+
+const locks = {};
 
 const server = http.createServer(async (req, res) => {
 
@@ -76,23 +81,146 @@ const server = http.createServer(async (req, res) => {
 
       const fileUrl = await dav.getFileUrl(path);
 
-      if(fileUrl){
+      if(fileUrl && fileUrl.startsWith(pathJoin(config.dataFolder, 'config'))){
+
+        const readStream = createReadStream(fileUrl);
+
+        res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
+        readStream.pipe(res);
+
+        // Handle any read stream errors
+        readStream.on('error', (error) => {
+          res.writeHead(500, { 'Content-Type': 'text/plain' });
+          res.end('Error reading file');
+        }); 
+
+      }else if(fileUrl && fileUrl.startsWith('http')){
+
         const parsed = new URL(fileUrl);
         const cut = (value) => value ?  `${value.substr(0, 5)}******${value.substr(-5)}` : '';
         console.log(`${req.url} : Redirect: ${parsed.protocol}//${parsed.host}${cut(parsed.pathname)}${cut(parsed.search)}`);
         res.writeHead(302, { Location: fileUrl });
         res.end();
+
       }else{
         res.writeHead(404);
         res.end('File Not Found');
+      }
+
+    }else if(req.method === 'PUT'){
+
+      const lockToken = req.headers['if'];
+
+      if(locks[path]){
+        if(!lockToken || !lockToken.includes(locks[path].token)){
+          res.writeHead(423, { 'Content-Type': 'text/plain' }); // Locked
+          res.end('Resource is locked');
+          return;
+        }
+      }
+
+      const length = parseInt(req.headers['content-length']);
+      const maxUploadSize = 1*1024*1024;
+
+      if(length > maxUploadSize){
+        res.writeHead(413);
+        res.end(`File size exceeds the limit`);
+        return;
+      }
+
+      if(path != '/Config/config.custom.yml'){
+        res.writeHead(403);
+        res.end(`You did not have permission to write on ${path}`);
+        return;
+      }
+
+      const tmpFilePath = pathJoin(tmpdir(), `upload_${Date.now()}`);
+      const writeStream = createWriteStream(tmpFilePath);
+      let uploadedSize = 0;
+
+      req.on('data', (chunk) => {
+        uploadedSize += chunk.length;
+        if(uploadedSize > maxUploadSize){
+          writeStream.destroy();
+          fs.unlink(tmpFilePath).catch(err => {});
+          res.writeHead(413, { 'Content-Type': 'text/plain' });
+          res.end('File size exceeds the limit');
+          req.destroy();
+        }
+      });
+
+      req.on('end', async () => {
+        if(uploadedSize < maxUploadSize){
+          try {
+            await fs.rename(tmpFilePath, `${config.dataFolder}/config/config.custom.yml`);
+            res.writeHead(201, { 'Content-Type': 'text/plain' });
+            res.end('File uploaded successfully');
+          }catch(err){
+            fs.unlink(tmpFilePath).catch(err => {});
+            res.writeHead(500, { 'Content-Type': 'text/plain' });
+            res.end('Error saving file');
+          }
+        }
+      });
+
+      req.on('error', async (err) => {
+        writeStream.destroy();
+        fs.unlink(tmpFilePath).catch(() => {});
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end(`File upload failed: ${error.message}`);
+      });
+
+      req.pipe(writeStream);
+
+    }else if(req.method === 'LOCK'){
+
+      const lockToken = `urn:uuid:${Date.now()}`;
+      const timeout = 3600;
+      
+      locks[path] = {
+        token: lockToken,
+        owner: req.headers['owner'] || 'unknown',
+        timeout: Date.now() + timeout * 1000,
+      };
+
+      res.writeHead(200, { 
+        'Content-Type': 'application/xml', 
+        'Lock-Token': `<${lockToken}>`
+      });
+      res.end(`
+        <D:prop xmlns:D="DAV:">
+          <D:lockdiscovery>
+            <D:activelock>
+              <D:locktype><D:write/></D:locktype>
+              <D:lockscope><D:exclusive/></D:lockscope>
+              <D:depth>infinity</D:depth>
+              <D:timeout>Second-${timeout}</D:timeout>
+              <D:locktoken><D:href>${lockToken}</D:href></D:locktoken>
+              <D:owner>${locks[path].owner}</D:owner>
+            </D:activelock>
+          </D:lockdiscovery>
+        </D:prop>
+      `);
+
+    }else if(req.method === 'UNLOCK'){
+
+      const lockToken = req.headers['lock-token'];
+
+      if (locks[path] && locks[path].token === lockToken) {
+        delete locks[path];
+        res.writeHead(204); // No Content
+        res.end();
+      } else {
+        res.writeHead(403, { 'Content-Type': 'text/plain' });
+        res.end('Unlock failed: invalid lock token');
       }
 
     }else if(req.method === 'OPTIONS'){
 
       // Handle OPTIONS method
       res.writeHead(200, {
-          'Allow': 'OPTIONS, PROPFIND, GET',
-          'DAV': '1',
+          'Allow': 'OPTIONS, PROPFIND, GET, PUT, LOCK, UNLOCK',
+          'DAV': '2',
           'MS-Author-Via': 'DAV',
       });
       res.end();
@@ -173,8 +301,25 @@ function generatePropfindResponse(requestPath, files) {
   return res;
 }
 
+async function initConfig(){
+
+  const davConfigFolder = pathJoin(config.dataFolder, `config`);
+
+  await fs.mkdir(davConfigFolder).catch(err => {});
+  await fs.copyFile(pathJoin(import.meta.dirname, 'config', 'config.yml'), pathJoin(davConfigFolder, `config.yml`));
+
+  try {
+    await fs.access(pathJoin(davConfigFolder, `config.custom.yml`));
+  }catch(err){
+    await fs.copyFile(pathJoin(import.meta.dirname, 'config', 'config.custom.yml'), pathJoin(davConfigFolder, `config.custom.yml`));
+  }
+
+  console.log(`Config folder initialized`);
+
+}
+
 // Start server on port 8080
-server.listen(config.port, () => {
+initConfig().then(() => server.listen(config.port, () => {
   console.log('WebDAV server is running on port 8080');
 
   const intervals = [];
@@ -184,6 +329,15 @@ server.listen(config.port, () => {
 
   cleanCache().catch(err => console.log(`Failed to clean cache:`, err));
   intervals.push(setInterval(() => cleanCache(), 3600e3));
+
+  intervals.push(setInterval(() => {
+    const now = Date.now();
+    for (const path in locks) {
+      if (locks[path].timeout < now) {
+        delete locks[path]; // Remove expired lock
+      }
+    }
+  }, 60000));
 
   if(config.debridId && config.debridApiKey && config.plexUrl && config.plexToken){
     console.log('Watching for change to update the Plex library');
@@ -206,4 +360,4 @@ server.listen(config.port, () => {
   }
   process.once('SIGINT', closeGracefully);
   process.once('SIGTERM', closeGracefully);
-});
+}));

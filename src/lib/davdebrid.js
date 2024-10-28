@@ -1,8 +1,11 @@
-import {basename} from 'path';
+import {basename, join as pathJoin} from 'path';
 import cache from './cache.js';
 import * as debrid from './debrid.js';
 import config from './config.js';
-import {wait, indexByKey} from './util.js';
+import {wait, indexByKey, fileType} from './util.js';
+import FileOrganizer from './FileOrganizer.js';
+import * as fs from 'node:fs/promises';
+import { parse } from 'yaml';
 
 const actionInProgress = {
   getFiles: {}
@@ -20,69 +23,50 @@ export default class Davdebrid {
   constructor(config){
     this.#config = config;
     this.#debrid = debrid.instance(config);
-    this.mediaGroups = [
-      {
-        name: 'Shows',
-        regex: /S[0-9]+E[0-9]+|[0-9]+x[0-9]+/,
-        videosInParent: 6,
-        files: []  
-      },
-      {
-        name: 'Movies',
-        regex: true,
-        videosInParent: 0,
-        files: []
-      }
-    ];
   }
 
   async listFiles(path){
 
-    const files = await this.#getFiles();
-
-    const mediaGroups = [].concat(...this.mediaGroups);
-
     if(path === '/'){
 
-      return mediaGroups.map(mediaGroup => ({
-        name: mediaGroup.name,
+      const folders = await this.#getFolders();
+
+      return folders.map(foler => ({
+        name: foler.name,
         size: 0,
         type: 'folder' 
-      }));
+      })).concat({
+        name: 'Config',
+        size: 0,
+        type: 'folder'
+      });
+
+    }else if(path === '/Config/'){
+
+      return this.#getConfigFiles();
 
     }else if(path.endsWith('/')){
 
+      const [files, folders] = await Promise.all([this.#getFiles(), this.#getFolders()]);
+
       const folderName = basename(path);
-      const mediaGroup =  mediaGroups.find(mediaGroup => mediaGroup.name == folderName);
-      if(!mediaGroup){
+      const fileOrganizer = new FileOrganizer(files, folders);
+
+      const folder = fileOrganizer.get().find(folder => folder.name == folderName);
+
+      if(!folder){
         throw new Error(debrid.ERROR.NOT_FOUND);
       }
 
-      const countVideosByParent = files.reduce((stats, file) => {
-        stats[file.parent.id] = stats[file.parent.id] || 0;
-        if(file.type == 'video')stats[file.parent.id]++;
-        return stats;
-      }, {});
-
-      for(let file of files){
-        if(!['video', 'subtitle'].includes(file.type)){
-          continue;
-        }
-        for(let mg of mediaGroups){
-          if((mg.regex === true || file.name.match(mg.regex)) || (mg.videosInParent > 0 && countVideosByParent[file.parent.id] >= mg.videosInParent)){
-            mg.files.push(file);
-            break;
-          }
-        }
-      }
-
-      return mediaGroup.files;
+      return folder.files;
 
     }else {
 
+      const files = await (path.startsWith('/Config/') ? this.#getConfigFiles() : this.#getFiles());
       const fileName = basename(path);
       const file = files.find(file => file.name == fileName);
       if(!file){
+        console.log(fileName);
         throw new Error(debrid.ERROR.NOT_FOUND);
       }
 
@@ -95,24 +79,40 @@ export default class Davdebrid {
   async getFileUrl(path){
 
     const fileName = basename(path);
-    const cacheKey = `debridFileUrl:${await this.#debrid.getUserHash()}:${fileName}`;
 
-    let fileUrl = await cache.get(cacheKey);
-    if(fileUrl){
+    if(path.startsWith('/Config/')){
+
+      const files = await this.#getConfigFiles();
+      const file = files.find(file => file.name == fileName);
+
+      if(!file){
+        throw new Error(debrid.ERROR.NOT_FOUND);
+      }
+
+      return file.url;
+
+    }else{
+
+      const cacheKey = `debridFileUrl:${await this.#debrid.getUserHash()}:${fileName}`;
+      let fileUrl = await cache.get(cacheKey);
+
+      if(fileUrl){
+        return fileUrl;
+      }
+
+      const files = await this.#getFiles();
+      const file = files.find(file => file.name == fileName);
+
+      if(!file){
+        throw new Error(debrid.ERROR.NOT_FOUND);
+      }
+
+      fileUrl = await this.#debrid.getDownload(file);
+      await cache.set(cacheKey, fileUrl, 3600);
+
       return fileUrl;
+
     }
-
-    const files = await this.#getFiles();
-    const file = files.find(file => file.name == fileName);
-    if(!file){
-      throw new Error(debrid.ERROR.NOT_FOUND);
-    }
-
-    fileUrl = await this.#debrid.getDownload(file);
-
-    await cache.set(cacheKey, fileUrl, 3600);
-
-    return fileUrl;
 
   }
 
@@ -144,7 +144,7 @@ export default class Davdebrid {
     const headers = {'X-Plex-Token': plexToken, Accept: 'application/json'};
 
     const sections = await fetch(`${plexUrl}/library/sections`, {headers}).then(res => res.json());
-    const sectionLocationRegex = new RegExp(`\/(${this.mediaGroups.map(mg => mg.name).join('|')})`);
+    const sectionLocationRegex = new RegExp(`\/(${this.folders.map(folder => folder.name).join('|')})`);
 
     // rclone --dir-cache-time 5s
     await wait(5000);
@@ -169,7 +169,7 @@ export default class Davdebrid {
     const recentFilesCheckCacheKey = `debridRecentFilesCheckCacheKey:${userHash}`;
 
     while(actionInProgress.getFiles[cacheKey]){
-      await wait(50);
+      await wait(25);
     }
     actionInProgress.getFiles[cacheKey] = true;
 
@@ -214,6 +214,42 @@ export default class Davdebrid {
 
     }
 
+  }
+
+  async #getConfigFiles(){
+    let files = await fs.readdir(`${config.dataFolder}/config`);
+    files = await Promise.all(files.map(async file => {
+      const stat = await fs.stat(pathJoin(`${config.dataFolder}/config`, file));
+      if(stat.isFile()){
+        return {
+          name: file,
+          size: stat.size,
+          type: fileType(file),
+          lastModified: stat.mtime,
+          url: `${config.dataFolder}/config/${file}`
+        }
+      }
+      return false;
+    }));
+
+    return files.filter(Boolean);
+  }
+
+  async #getFolders(){
+    try {
+      const customConfig = await this.#getConfigFromFile(pathJoin(config.dataFolder, 'config', 'config.custom.yml'));
+      if(customConfig && customConfig.folders && customConfig.folders.length > 0)return customConfig.folders;
+    }catch(err){
+      console.log('Error on config.custom.yml, fallback to config.yml', err);
+    }
+    const defaultConfig = await this.#getConfigFromFile(pathJoin(config.dataFolder, 'config', 'config.yml'));
+    return defaultConfig.folders;
+  }
+
+  async #getConfigFromFile(path){
+    const data = await fs.readFile(path, {encoding: 'utf8'});
+    const parsed = parse(data);
+    return parsed;
   }
 
 }

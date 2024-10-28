@@ -33,8 +33,29 @@ export function fileType(filename){
       "sub",
       "sbv",
       "mpsub"
+    ],
+    music: [
+      'mp3', 
+      'wav', 
+      'flac', 
+      'aac', 
+      'ogg', 
+      'wma'
+    ],
+    image: [
+      'jpg', 
+      'jpeg', 
+      'png', 
+      'gif', 
+      'bmp', 
+      'tiff',
+      'webp', 
+      'svg', 
+      'heic', 
+      'heif', 
+      'raw'
     ]
-  };
+  };  
   for(let type in types){
     if(types[type].includes(extension)){
       return type;

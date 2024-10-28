@@ -69,4 +69,68 @@ rclone mount dav: /mnt/dav \
 
 ## Configuration
 
-All configurations are documented in the [config.js file](./src/lib/config.js)
+### Server
+
+All server configurations are documented in the [config.js file](./src/lib/config.js)
+
+### Folder organizing
+
+When you mount the WebDAV server, you’ll find a `Config` folder containing two files:
+
+- **`config.yml`**: This is the default configuration file for your folders. It provides base settings and is read-only, so it cannot be modified.
+- **`config.custom.yml`**: This is your customizable configuration file. You can edit it to define and apply your own organization rules for folders, which will override the default configuration.
+
+Each folder configuration is processed sequentially in the order specified in the configuration file.
+
+#### Folder Properties
+- **`name`**: The display name for the folder at the root of your WebDAV.
+- **`unique`**: Specifies whether the folder is unique. Files in non-unique folders can also appear in other matching folders. Files cannot appear in more than one unique folder.
+- **`cond`**: The condition used to determine which files are in the folder.
+
+#### Condition Types
+- **`regex`**: Matches files based on the specified regex pattern.
+- **`minVideosInParent`**: Requires that the file be located within a parent folder containing at least `n` video files.
+- **`fileTypes`**: Defines the acceptable file types (e.g., `video`, `subtitle`, `music`, `image`, `unknown`).
+- **`or`**: Applies an `OR` logic across the listed conditions.
+- **`and`**: Applies an `AND` logic across conditions. This is the default behavior and doesn’t need to be explicitly specified.
+
+
+For example, the default organization rules:
+
+```yaml
+# Default Configuration - Cannot be Overwritten
+# To customize, please edit the 'config.custom.yml' file.
+
+# Folder Organizer Conditions
+# Files available on the debrid service will be organized into folders based on specified conditions.
+# If a file matches a 'unique' folder condition, no further `unique` folder conditions will be checked for that file.
+
+folders:
+
+  # This folder contains all files, regardless of type.
+  # Since this is not a unique condition, files may also appear in other applicable folders.
+  - name: 'All'
+    unique: false
+    cond: {}
+
+  # This folder contains only video and subtitle files that match the specified regex 
+  # or are located within a parent folder containing more than six video files 
+  # (e.g., torrent with multiple videos).
+  - name: 'Shows'
+    unique: true
+    cond:
+      or:
+        regex: '[0-9]+E[0-9]+|[0-9]+x[0-9]+'
+        minVideosInParent: 6
+      fileTypes:
+        - 'video'
+        - 'subtitle'
+
+  # This folder contains all remaining video and subtitle files that do not match the conditions of previous unique folders (Shows).
+  - name: 'Movies'
+    unique: true
+    cond:
+      fileTypes:
+        - 'video'
+        - 'subtitle'
+```

@@ -3,7 +3,7 @@ import cache from './cache.js';
 import * as debrid from './debrid.js';
 import config from './config.js';
 import {wait, indexByKey, fileType} from './util.js';
-import FileOrganizer from './FileOrganizer.js';
+import FileOrganizer from './fileOrganizer.js';
 import * as fs from 'node:fs/promises';
 import { parse } from 'yaml';
 

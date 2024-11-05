@@ -7,6 +7,10 @@ A self-hosted WebDAV server for Debrid-Link, automatically organizing your media
 ### Run with Docker
 
 ```bash
+# Create a volume
+docker volume create davdebrid_data
+
+# Run the container
 docker run -d \
   --name=davdebrid \
   -p 8080:8080 \
@@ -14,7 +18,7 @@ docker run -d \
   -e DEBRID_ID=debridlink \
   -e DEBRID_API_KEY=apikey \
   -e DATA_FOLDER=/data \
-  -v /path/to/data:/data \
+  -v davdebrid_data:/data \
   arvida42/davdebrid:latest
 ```
 
@@ -33,7 +37,6 @@ rclone mount dav: /mnt/dav \
   --vfs-read-chunk-size 4M \
   --vfs-read-chunk-size-limit 256M \
   --vfs-fast-fingerprint \
-  --read-only \
   --allow-non-empty
 ```
 
